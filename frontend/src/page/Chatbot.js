@@ -1,124 +1,37 @@
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import Avatar from "../component/Avatar";
 import Loading from "../component/Loading";
 import Error from "../component/Error";
-import "./Chatbot.css"; // Ensure you have appropriate styles
+import { useChatbot } from "../hooks/useChatbot";
+import config from "../config/config";
+import "./Chatbot.css";
 
 const Chatbot = () => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [jobDescription, setJobDescription] = useState("");
-  const [subquestions, setSubquestions] = useState("");
-  const [isEditing, setIsEditing] = useState(false); // To toggle edit mode
-  const [isLocked, setIsLocked] = useState(false); // To toggle lock state
-  const [resumes, setResumes] = useState([]);
-  const [history, setHistory] = useState([]); // State to store history
-  const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (input.trim() === "") return;
-  
-    setMessages([...messages, { sender: "user", text: input }]);
-    setInput("");
-    setLoading(true);
-  
-    // Determine the prompt_cls value based on whether history is empty
-    const promptClsValue = history.length === 0 ? "retrieve_applicant_jd" : "your_alternate_prompt_cls_value";
-  
-    try {
-      const response = await fetch("http://127.0.0.1:8000/generate/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question: input,
-          docs: resumes,
-          subquestions: subquestions.split("\n"),
-          history: history,
-          prompt_cls: promptClsValue,
-        }),
-      });
-  
-      if (!response.ok) throw new Error("Failed to fetch bot response");
-  
-      const data = await response.json();
-      const botMessage = { sender: "bot", text: data.message };
-  
-      setMessages([...messages, { sender: "user", text: input }, botMessage]);
-  
-      // Add to history
-      setHistory([...history, { question: input, answer: data.message }]);
-  
-    } catch (err) {
-      setError("An error occurred while fetching the bot response.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const handleJobDescriptionSubmit = async () => {
-    try {
-      const response = await fetch("http://127.0.0.1:8000/generate_subquestions/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ description: jobDescription }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch sub-questions");
-      }
-      const data = await response.json();
-      setSubquestions(data.subquestions.join("\n")); // Join sub-questions with newline
-      setIsEditing(true); // Set editing mode
-      setIsLocked(false); // Ensure it's not locked initially
-    } catch (err) {
-      setError(err.message || "An error occurred while fetching sub-questions");
-    }
-  };
-
-  const handleEditChange = (e) => {
-    if (!isLocked) {
-      setSubquestions(e.target.value); // Update sub-questions as the user types
-    }
-  };
-
-  const handleEditSubmit = () => {
-    setMessages([...messages, { sender: "user", text: subquestions }]);
-    setIsEditing(false); // Exit editing mode
-  };
-
-  const handleLockToggle = () => {
-    setIsLocked(!isLocked); // Toggle lock state
-  };
-
-  const handleRetrieveResumes = async () => {
-    try {
-      const response = await fetch("http://127.0.0.1:8000/retrieve_resumes/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ subquestions: subquestions.split("\n") }), // Convert text area content to array
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error("Failed to retrieve resumes: " + errorText);
-      }
-      const data = await response.json();
-      setResumes(data.resumes); // Store retrieved resumes
-    } catch (err) {
-      setError(err.message || "An error occurred while retrieving resumes");
-    }
-  };
+  const {
+    // State
+    messages,
+    input,
+    loading,
+    error,
+    jobDescription,
+    subquestions,
+    isEditing,
+    isLocked,
+    resumes,
+    chatEndRef,
+    
+    // Actions
+    setInput,
+    setJobDescription,
+    handleSubmit,
+    handleJobDescriptionSubmit,
+    handleEditChange,
+    handleEditSubmit,
+    handleLockToggle,
+    handleRetrieveResumes,
+    clearChat,
+    clearError,
+  } = useChatbot();
 
   return (
     <div className="chatbot">
@@ -130,7 +43,14 @@ const Chatbot = () => {
           onChange={(e) => setJobDescription(e.target.value)}
           placeholder="Enter job description here..."
         />
-        <button onClick={handleJobDescriptionSubmit}>Get Sub-Questions</button>
+        <button
+          onClick={handleJobDescriptionSubmit}
+          disabled={!jobDescription.trim()}
+          className="primary-btn"
+        >
+          Get Sub-Questions
+        </button>
+        
         {isEditing && (
           <div className="subquestions">
             <h3>Edit Sub-Questions:</h3>
@@ -139,52 +59,89 @@ const Chatbot = () => {
               value={subquestions}
               onChange={handleEditChange}
               placeholder="Edit the sub-questions here..."
-              disabled={isLocked} // Disable editing when locked
+              disabled={isLocked}
             />
-            <button onClick={handleLockToggle}>
-              {isLocked ? "Unlock" : "Lock"}
-            </button>
-            <button onClick={handleRetrieveResumes}>
-              Retrieve Resumes
-            </button>
+            <div className="button-group">
+              <button onClick={handleLockToggle} className="secondary-btn">
+                {isLocked ? "Unlock" : "Lock"}
+              </button>
+              <button onClick={handleRetrieveResumes} className="primary-btn">
+                Retrieve Resumes
+              </button>
+            </div>
           </div>
         )}
+        
         {resumes.length > 0 && (
           <div className="retrieved-resumes">
-            <h3>Retrieved Resumes:</h3>
+            <h3>Retrieved Resumes ({resumes.length}):</h3>
             <ul>
               {resumes.map((resume, index) => (
-                <li key={index}>{resume}</li> // Adjust this to match the structure of your resumes
+                <li key={index} className="resume-item">
+                  <span className="resume-number">#{index + 1}</span>
+                  <span className="resume-text">{resume}</span>
+                </li>
               ))}
             </ul>
           </div>
         )}
+        
+        <div className="side-panel-actions">
+          <button onClick={clearChat} className="danger-btn">
+            Clear Chat
+          </button>
+        </div>
       </aside>
+      
       <main className="chatbot-main">
+        <div className="chatbot-header">
+          <h1>{config.APP.NAME}</h1>
+          <p>AI-powered HR assistant for resume analysis and job matching</p>
+        </div>
+        
         <div className="chatbot-messages">
+          {messages.length === 0 && (
+            <div className="welcome-message">
+              <h3>Welcome to {config.APP.NAME}! 👋</h3>
+              <p>Start by entering a job description to generate relevant questions, then ask me anything about resumes and candidates.</p>
+            </div>
+          )}
+          
           {messages.map((msg, index) => (
             <div key={index} className={`message ${msg.sender}`}>
               <Avatar
                 bg={msg.sender === "user" ? "#5437DB" : "#11a27f"}
                 className={`avatar ${msg.sender}-avatar`}
+                name={msg.sender === "user" ? "You" : "AI Assistant"}
+                size="40px"
               />
-              <div className="message-text">{msg.text}</div>
+              <div className="message-content">
+                <div className="message-text">{msg.text}</div>
+                <div className="message-timestamp">
+                  {msg.timestamp?.toLocaleTimeString()}
+                </div>
+              </div>
             </div>
           ))}
-          {loading && <Loading />}
-          {error && <Error err={error} />}
+          
+          {loading && <Loading message="AI is thinking..." />}
+          {error && <Error err={error} onRetry={clearError} />}
           <div ref={chatEndRef} />
         </div>
+        
         <form className="chatbot-input" onSubmit={handleSubmit}>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
+            disabled={loading}
+            maxLength={config.CHAT.MAX_MESSAGE_LENGTH}
           />
-          <button type="submit">Send</button>
+          <button type="submit" disabled={loading || !input.trim()}>
+            {loading ? "Sending..." : "Send"}
+          </button>
         </form>
- 
       </main>
     </div>
   );

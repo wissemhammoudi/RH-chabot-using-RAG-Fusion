@@ -1,0 +1,17 @@
+.avatar {
+  transition: transform 0.2s ease;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}
+
+.user-avatar {
+  order: 2;
+  margin-left: 8px;
+}
+
+.bot-avatar {
+  order: 0;
+  margin-right: 8px;
+}

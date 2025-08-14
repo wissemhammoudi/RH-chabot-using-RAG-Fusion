@@ -1,12 +1,13 @@
-// Loading.js
 import React from "react";
-import "./Loading.css"; // Optional: if you want to style the spinner
+import "./Loading.css";
 
-const Loading = () => {
+const Loading = ({ message = "Thinking..." }) => {
   return (
     <div className="loading">
-      <div className="spinner"></div>
-      <p>Loading...</p>
+      <div className="loading-content">
+        <div className="spinner"></div>
+        <p className="loading-text">{message}</p>
+      </div>
     </div>
   );
 };
